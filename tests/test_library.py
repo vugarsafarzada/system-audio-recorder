@@ -8,9 +8,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from system_audio_recorder.library import (
+    FolderOpenError,
     PlaybackError,
     add_recording_name,
     list_recordings,
+    open_recordings_folder,
     play_recording,
 )
 
@@ -87,6 +89,33 @@ class RecordingLibraryTests(unittest.TestCase):
     def test_missing_recording_cannot_be_played(self) -> None:
         with self.assertRaisesRegex(PlaybackError, "no longer exists"):
             play_recording(self.directory / "missing.wav")
+
+    @patch("system_audio_recorder.library.subprocess.run")
+    @patch("system_audio_recorder.library.Path.is_file", return_value=True)
+    def test_open_folder_uses_builtin_open(self, is_file, run) -> None:
+        del is_file
+        run.return_value.returncode = 0
+        recordings = self.directory / "recordings"
+
+        open_recordings_folder(recordings)
+
+        self.assertTrue(recordings.is_dir())
+        run.assert_called_once_with(
+            ["/usr/bin/open", str(recordings)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    @patch("system_audio_recorder.library.subprocess.run")
+    @patch("system_audio_recorder.library.Path.is_file", return_value=True)
+    def test_open_folder_reports_finder_failure(self, is_file, run) -> None:
+        del is_file
+        run.return_value.returncode = 1
+        run.return_value.stderr = "Finder unavailable"
+
+        with self.assertRaisesRegex(FolderOpenError, "Finder unavailable"):
+            open_recordings_folder(self.directory)
 
 
 if __name__ == "__main__":

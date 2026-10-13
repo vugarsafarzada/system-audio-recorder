@@ -10,9 +10,11 @@ import tty
 from pathlib import Path
 
 from .library import (
+    FolderOpenError,
     PlaybackError,
     add_recording_name,
     list_recordings,
+    open_recordings_folder,
     play_recording,
 )
 from .recorder import (
@@ -228,7 +230,10 @@ def main() -> int:
     print("Uses ScreenCaptureKit for system audio only. Microphone capture is disabled.")
 
     while True:
-        print("\n[1] Start  [2] Stop  [3] Recordings  [4] Exit")
+        print(
+            "\n[1] Start  [2] Stop  [3] Recordings  "
+            "[4] Open Folder  [5] Exit"
+        )
         try:
             command = input("> ").strip().casefold()
         except (EOFError, KeyboardInterrupt):
@@ -241,11 +246,18 @@ def main() -> int:
             print("No recording is active. Choose Start first.")
         elif command in {"3", "recordings", "list", "play"}:
             show_recordings(output_directory)
-        elif command in {"4", "exit", "quit", "q"}:
+        elif command in {"4", "folder", "open", "open folder"}:
+            try:
+                open_recordings_folder(output_directory)
+            except FolderOpenError as exc:
+                print(f"Folder error: {exc}")
+            else:
+                print(f"Opened recordings folder: {output_directory}")
+        elif command in {"5", "exit", "quit", "q"}:
             print("Goodbye.")
             return 0
         else:
-            print("Choose Start, Stop, Recordings, or Exit.")
+            print("Choose Start, Stop, Recordings, Open Folder, or Exit.")
 
 
 if __name__ == "__main__":

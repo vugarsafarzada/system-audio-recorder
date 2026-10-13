@@ -14,6 +14,10 @@ class PlaybackError(RuntimeError):
     pass
 
 
+class FolderOpenError(RuntimeError):
+    pass
+
+
 @dataclass(frozen=True)
 class RecordingEntry:
     path: Path
@@ -81,6 +85,32 @@ def play_recording(path: Path) -> None:
     if completed.returncode != 0:
         detail = completed.stderr.strip() or f"exit code {completed.returncode}"
         raise PlaybackError(f"Playback failed: {detail}")
+
+
+def open_recordings_folder(directory: Path) -> None:
+    """Create the recordings directory if needed and reveal it in Finder."""
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise FolderOpenError(
+            f"Could not create the recordings folder: {exc}"
+        ) from exc
+
+    opener = Path("/usr/bin/open")
+    if not opener.is_file():
+        raise FolderOpenError("The built-in macOS open command was not found.")
+    try:
+        completed = subprocess.run(
+            [str(opener), str(directory)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        raise FolderOpenError(f"Could not open the recordings folder: {exc}") from exc
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or f"exit code {completed.returncode}"
+        raise FolderOpenError(f"Could not open the recordings folder: {detail}")
 
 
 def _safe_name(name: str, maximum_length: int = 80) -> str:

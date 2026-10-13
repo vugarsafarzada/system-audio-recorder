@@ -9,6 +9,12 @@ import termios
 import tty
 from pathlib import Path
 
+from .library import (
+    PlaybackError,
+    add_recording_name,
+    list_recordings,
+    play_recording,
+)
 from .recorder import (
     EmptyRecordingError,
     RecordingConfig,
@@ -133,12 +139,77 @@ def record_once(output_directory: Path) -> None:
         print(f"Recording error: {exc}")
         return
 
-    print(
-        f"Saved WAV recording: {result.path} "
-        f"({format_duration(result.duration_seconds)})"
-    )
+    final_path = _prompt_for_recording_name(result.path)
+    duration = format_duration(result.duration_seconds)
+    print(f"Saved WAV recording: {final_path} ({duration})")
     for warning in result.warnings:
         print(f"Warning: {warning}")
+
+
+def _prompt_for_recording_name(path: Path) -> Path:
+    try:
+        name = input("Recording name (optional, press Return to keep timestamp): ")
+    except (EOFError, KeyboardInterrupt):
+        print("\nKeeping the timestamped filename.")
+        return path
+    if not name.strip():
+        return path
+    try:
+        named_path = add_recording_name(path, name)
+    except OSError as exc:
+        print(f"Could not apply that name; keeping '{path.name}': {exc}")
+        return path
+    if named_path == path:
+        print("That name had no usable filename characters; keeping the timestamp.")
+    return named_path
+
+
+def show_recordings(output_directory: Path) -> None:
+    while True:
+        recordings = list_recordings(output_directory)
+        if not recordings:
+            print("No recordings found.")
+            return
+
+        print("\nRecordings (newest first):")
+        for index, recording in enumerate(recordings, start=1):
+            duration = (
+                format_duration(recording.duration_seconds)
+                if recording.duration_seconds is not None
+                else "unknown"
+            )
+            size = _format_file_size(recording.size_bytes)
+            print(f"[{index}] {recording.path.name} | {duration} | {size}")
+
+        try:
+            answer = input(
+                "Choose a number to play, or press Return to go back: "
+            ).strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if not answer:
+            return
+        if not answer.isdigit() or not 1 <= int(answer) <= len(recordings):
+            print("Choose one of the listed recording numbers.")
+            continue
+
+        selected = recordings[int(answer) - 1]
+        print(f"Playing {selected.path.name}. Press Ctrl+C to stop playback.")
+        try:
+            play_recording(selected.path)
+        except KeyboardInterrupt:
+            print("\nPlayback stopped.")
+        except PlaybackError as exc:
+            print(f"Playback error: {exc}")
+
+
+def _format_file_size(size_bytes: int) -> str:
+    if size_bytes < 1_024:
+        return f"{size_bytes} B"
+    if size_bytes < 1_024 * 1_024:
+        return f"{size_bytes / 1_024:.1f} KB"
+    return f"{size_bytes / (1_024 * 1_024):.1f} MB"
 
 
 def _termination_handler(signum: int, frame: object) -> None:
@@ -157,7 +228,7 @@ def main() -> int:
     print("Uses ScreenCaptureKit for system audio only. Microphone capture is disabled.")
 
     while True:
-        print("\n[1] Start  [2] Stop  [3] Exit")
+        print("\n[1] Start  [2] Stop  [3] Recordings  [4] Exit")
         try:
             command = input("> ").strip().casefold()
         except (EOFError, KeyboardInterrupt):
@@ -168,11 +239,13 @@ def main() -> int:
             record_once(output_directory)
         elif command in {"2", "stop"}:
             print("No recording is active. Choose Start first.")
-        elif command in {"3", "exit", "quit", "q"}:
+        elif command in {"3", "recordings", "list", "play"}:
+            show_recordings(output_directory)
+        elif command in {"4", "exit", "quit", "q"}:
             print("Goodbye.")
             return 0
         else:
-            print("Choose Start, Stop, or Exit.")
+            print("Choose Start, Stop, Recordings, or Exit.")
 
 
 if __name__ == "__main__":

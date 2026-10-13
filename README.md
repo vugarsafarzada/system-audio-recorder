@@ -33,13 +33,16 @@ On the first Start command, the application compiles the reviewed Swift source
 to `.build/system-audio-capture`. Later starts reuse that binary unless the Swift
 source changes. Nothing is captured during the build or before Start is chosen.
 
-The terminal menu provides Start, Stop, and Exit. Start asks for WAV confirmation
-and a 48,000 Hz or 44,100 Hz sample rate. While recording, elapsed time is shown.
-Press `S`, Return, or Ctrl+C to finalize the WAV.
+The terminal menu provides Start, Stop, Recordings, and Exit. Start asks for WAV
+confirmation and a 48,000 Hz or 44,100 Hz sample rate. While recording, elapsed
+time is shown. Press `S`, Return, or Ctrl+C to finalize the WAV. After stopping,
+you can enter an optional recording name. The timestamp remains in the filename.
 
 Recordings are written to `recordings/` with timestamped names. They are first
 written to a unique temporary path, validated as stereo 16-bit PCM WAV, and then
-published atomically without replacing an existing file.
+published atomically without replacing an existing file. Choose Recordings to
+see every saved WAV with the newest recording first, then choose its number to
+play it using macOS's built-in `afplay` command.
 
 ## Privacy permission
 
@@ -60,6 +63,7 @@ changes the selected audio output device.
 ## Architecture
 
 - `main.py` starts the Python terminal interface.
+- `system_audio_recorder/library.py` lists, safely names, and plays recordings.
 - `system_audio_recorder/recorder.py` owns the safe recording lifecycle and WAV
   validation.
 - `system_audio_recorder/native.py` builds and supervises one helper process.

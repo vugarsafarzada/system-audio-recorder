@@ -5,6 +5,8 @@ from __future__ import annotations
 import select
 import signal
 import sys
+import termios
+import tty
 from pathlib import Path
 
 from .recorder import (
@@ -44,27 +46,60 @@ def choose_sample_rate() -> int:
 
 
 def wait_for_stop(recorder: SystemAudioRecorder) -> None:
-    print("Recording started. Type 'stop' and press Return, or press Ctrl+C.")
+    if not sys.stdin.isatty():
+        _wait_for_stop_from_pipe(recorder)
+        return
+
+    print("Recording started. Press S or Return to stop. Ctrl+C also works.")
+    descriptor = sys.stdin.fileno()
+    original_settings = termios.tcgetattr(descriptor)
+    last_duration = ""
     try:
+        tty.setcbreak(descriptor)
         while True:
             failure = recorder.failure
-            print(
-                f"\rRecording {format_duration(recorder.elapsed_seconds)} > ",
-                end="",
-                flush=True,
-            )
             if failure:
-                print(f"\nCapture interruption: {failure}")
+                _clear_status_line()
+                print(f"Capture interruption: {failure}")
                 return
+            duration = format_duration(recorder.elapsed_seconds)
+            if duration != last_duration:
+                print(
+                    f"\rRecording {duration} | Press S or Return to stop",
+                    end="",
+                    flush=True,
+                )
+                last_duration = duration
             readable, _, _ = select.select([sys.stdin], [], [], 0.2)
             if readable:
-                command = sys.stdin.readline()
-                if command == "" or command.strip().casefold() in {"stop", "s", ""}:
-                    print()
+                key = sys.stdin.read(1)
+                if key in {"", "\r", "\n", "s", "S"}:
                     return
-                print("Type 'stop' to finish the recording.")
     except KeyboardInterrupt:
-        print("\nInterrupt received. Finalizing the recording...")
+        _clear_status_line()
+        print("Interrupt received. Finalizing the recording...")
+    finally:
+        termios.tcflush(descriptor, termios.TCIFLUSH)
+        termios.tcsetattr(descriptor, termios.TCSADRAIN, original_settings)
+        _clear_status_line()
+
+
+def _wait_for_stop_from_pipe(recorder: SystemAudioRecorder) -> None:
+    print("Recording started. Send 'stop' and Return, or send EOF.")
+    while True:
+        failure = recorder.failure
+        if failure:
+            print(f"Capture interruption: {failure}")
+            return
+        readable, _, _ = select.select([sys.stdin], [], [], 0.2)
+        if readable:
+            command = sys.stdin.readline()
+            if command == "" or command.strip().casefold() in {"stop", "s", ""}:
+                return
+
+
+def _clear_status_line() -> None:
+    print("\r\033[2K", end="", flush=True)
 
 
 def record_once(output_directory: Path) -> None:

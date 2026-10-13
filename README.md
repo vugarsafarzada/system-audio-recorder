@@ -17,14 +17,15 @@ capture to false. No video frames, screenshots, or microphone samples are saved.
 The Swift compiler is a build-time requirement only. The compiled helper links
 only Apple system frameworks and has no third-party runtime dependencies.
 
-MP3 output is intentionally unavailable. The installed Core Audio encoder
-registry and AVAudioConverter were checked on this Mac, and neither provides an
-MP3 encoder. WAV is the only enabled output format. AAC was not substituted.
+MP3 output is intentionally unavailable because macOS does not expose a reliable
+native MP3 encoder through Core Audio or AVAudioConverter for this application.
+WAV is the only enabled output format. AAC was not substituted.
 
 ## Run
 
 ```bash
-cd /Users/vugarsafarzada/Developer/MyProjects/project-4
+git clone https://github.com/vugarsafarzada/system-audio-recorder.git
+cd system-audio-recorder
 python3 main.py
 ```
 
@@ -82,8 +83,6 @@ collision-safe publication, empty and corrupted output, interruption recovery,
 permission denial, Swift compilation, microphone/video source restrictions, and
 the Python-to-helper JSON protocol.
 
-An end-to-end signal test still requires macOS permission and audible system
-playback during a recording. A successful automated or synthetic WAV test alone
-does not prove that live system audio was captured.
-
-# system-audio-recorder
+For an end-to-end check, grant the requested macOS permission, play known system
+audio, record it, and play the resulting WAV. Automated or synthetic WAV tests
+alone do not prove that live system audio was captured on another Mac.
